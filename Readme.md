@@ -4,6 +4,8 @@
 
 后端使用Go实现，前端采用简单的HTML页面实现！
 
+![](https://img11.360buyimg.com/ddimg/jfs/t1/443186/21/10502/30047/6a1fa645F590f15a3/001536a2fd6f69b0.jpg)
+
 
 ## 核心API
 
