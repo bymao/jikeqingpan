@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>即刻轻盘</title>
-  <meta name="description" content="基于百度网盘青春版的极简文件中转站，明亮清新，支持文件夹">
+  <meta name="description" content="基于百度网盘青春版的极简文件中转站，明亮清新，支持文件夹。源自：如有乐享">
   <style>
     /* ===== 设计令牌 (浅色极简) ===== */
     :root {
@@ -266,6 +266,29 @@
     #toast.show {
       transform: translateX(-50%) translateY(0);
     }
+
+    /* ===== 底部样式 ===== */
+    .footer {
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .footer a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .footer a:hover {
+      color: var(--accent);
+    }
   </style>
 </head>
 
@@ -300,6 +323,13 @@
       <div class="spinner"></div>
       <div>正在加载文件列表…</div>
     </div>
+
+    <!-- 底部信息 -->
+    <footer class="footer">
+      <a href="https://github.com/malaohu/jikeqingpan" target="_blank" rel="noopener noreferrer">开源仓库</a>
+      <span>|</span>
+      <a href="https://51.ruyo.net" target="_blank" rel="">作者博客</a>
+    </footer>
   </div>
 
   <!-- Toast -->

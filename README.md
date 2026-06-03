@@ -4,6 +4,16 @@
 
 后端使用Go实现，前端采用简单的HTML页面实现！
 
+
+# 部署
+
+1. 编辑config.json文件，替换"baidu_cookie"的值，这是获取你百度网盘青春版文件列表的必要参数
+
+2. 运行./cmd/bin/main 即可启动
+
+
+
+# UI截图
 ![](https://img11.360buyimg.com/ddimg/jfs/t1/443186/21/10502/30047/6a1fa645F590f15a3/001536a2fd6f69b0.jpg)
 
 
