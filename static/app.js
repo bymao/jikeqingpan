@@ -254,7 +254,11 @@ function buildFileItem(file) {
 
   item.appendChild(infoEl);
 
-  // 动作按钮
+  // 动作按钮容器
+  const actionsEl = document.createElement('div');
+  actionsEl.style.display = 'flex';
+  actionsEl.style.gap = '8px';
+
   const actionBtn = document.createElement('button');
   actionBtn.className = 'file-action';
   actionBtn.setAttribute('type', 'button');
@@ -272,7 +276,19 @@ function buildFileItem(file) {
     item.addEventListener('click', function() {
       enterDir(filePath);
     });
+    actionsEl.appendChild(actionBtn);
   } else {
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'file-action';
+    copyBtn.setAttribute('type', 'button');
+    copyBtn.textContent = '复制链接 🔗';
+    copyBtn.setAttribute('aria-label', '复制链接 ' + fileName);
+    copyBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      copyLink(filePath);
+    });
+    actionsEl.appendChild(copyBtn);
+
     actionBtn.textContent = '下载 ⬇';
     actionBtn.setAttribute('aria-label', '下载 ' + fileName);
     actionBtn.addEventListener('click', function(e) {
@@ -282,9 +298,10 @@ function buildFileItem(file) {
     item.addEventListener('click', function() {
       downloadFile(filePath, fileName);
     });
+    actionsEl.appendChild(actionBtn);
   }
 
-  item.appendChild(actionBtn);
+  item.appendChild(actionsEl);
   return item;
 }
 
@@ -326,6 +343,30 @@ function downloadFile(filePath, fileName) {
       showToast('❌ 下载失败：' + err.message);
       console.warn('[网盘] 直链解析失败: ' + err.message);
     });
+}
+
+function copyLink(filePath) {
+  const url = window.location.origin + '/api/download?path=' + encodeURIComponent(filePath);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function() {
+      showToast('✅ 链接已复制到剪贴板');
+    }).catch(function(err) {
+      showToast('❌ 复制失败');
+      console.warn('复制链接失败', err);
+    });
+  } else {
+    const input = document.createElement('input');
+    input.value = url;
+    document.body.appendChild(input);
+    input.select();
+    try {
+      document.execCommand('copy');
+      showToast('✅ 链接已复制到剪贴板');
+    } catch (err) {
+      showToast('❌ 复制失败');
+    }
+    document.body.removeChild(input);
+  }
 }
 
 // ===== 初始化 =====
