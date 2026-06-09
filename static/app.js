@@ -327,15 +327,9 @@ function downloadFile(filePath, fileName) {
       }
       const downloadUrl = urls[0].url;
 
-      // 使用 a 标签加上 rel="noreferrer" 规避防盗链拦截
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.setAttribute('rel', 'noreferrer');
-      a.setAttribute('download', fileName);
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      // 百度直链为跨域地址，a.download 属性对跨域无效
+      // 使用 window.open 新窗口打开直链，浏览器会自动触发下载
+      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
 
       showToast('✅ 唤起下载：' + fileName);
     })

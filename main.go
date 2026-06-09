@@ -219,7 +219,6 @@ func newServer(cfg *Config) *Server {
 	}
 	s.mux.HandleFunc("/api/files", s.withSecurity(s.handleFiles))
 	s.mux.HandleFunc("/api/download", s.withSecurity(s.handleDownload))
-	s.mux.HandleFunc("/api/stream", s.withSecurity(s.handleStream))
 	// 使用 FileServer 提供 static/ 目录下的所有静态资源（index.html, app.js 等）
 	staticFS := http.FileServer(http.Dir("static"))
 	s.mux.HandleFunc("/", s.withSecurity(func(w http.ResponseWriter, r *http.Request) {
@@ -286,7 +285,7 @@ func (s *Server) fetchFileList(dir string) ([]byte, error) {
 		url.QueryEscape(s.cfg.BaiduAppID),
 		url.QueryEscape(dir),
 	)
-	return s.baiduGet(apiURL)
+	return s.baiduGet(apiURL, "")
 }
 
 // handleFiles 获取文件列表，代理百度网盘 list API
@@ -322,7 +321,7 @@ func (s *Server) fetchUserSession() (int64, string, error) {
 		"https://pan.baidu.com/youth/api/user/getinfo?app_id=%s&clienttype=0&web=1&need_selfinfo=1",
 		url.QueryEscape(s.cfg.BaiduAppID),
 	)
-	body, err := s.baiduGet(apiURL)
+	body, err := s.baiduGet(apiURL, "")
 	var uk int64
 	var sk string
 	if err == nil {
@@ -342,7 +341,7 @@ func (s *Server) fetchUserSession() (int64, string, error) {
 	// 2. 如果不完整，从 /api/gettemplatevariable 获取
 	if uk == 0 || sk == "" {
 		fallbackURL := `https://pan.baidu.com/api/gettemplatevariable?fields=["bdstoken","uk","sk"]`
-		body2, err2 := s.baiduGet(fallbackURL)
+		body2, err2 := s.baiduGet(fallbackURL, "")
 		if err2 == nil {
 			var resp2 struct {
 				Result struct {
@@ -368,7 +367,7 @@ func (s *Server) fetchUserSession() (int64, string, error) {
 			url.QueryEscape(s.cfg.BaiduAppID),
 			time.Now().UnixMilli(),
 		)
-		bodySK, errSK := s.baiduGet(skURL)
+		bodySK, errSK := s.baiduGet(skURL, "")
 		if errSK == nil {
 			var respSK struct {
 				Uinfo string `json:"uinfo"`
@@ -420,7 +419,7 @@ func locatedownloadSign(fileMD5 string, fileID string, uk int64, nowMilli int64)
 }
 
 // getBaiduDLink 计算签名并向百度 locatedownload 接口获取直链（包含 sk 过期自动重试）
-func (s *Server) getBaiduDLink(filePath string) (string, error) {
+func (s *Server) getBaiduDLink(filePath string, ua string) (string, error) {
 	// 1. 获取文件元数据
 	meta, ok := s.cache.getFileMeta(filePath)
 	if !ok {
@@ -466,7 +465,7 @@ func (s *Server) getBaiduDLink(filePath string) (string, error) {
 		nowMilli,
 	)
 
-	body, err := s.baiduGet(locateURL)
+	body, err := s.baiduGet(locateURL, ua)
 	if err != nil {
 		log.Printf("[WARN] 首次 locatedownload 失败: %v，尝试清除sk并重试", err)
 		s.sessionMu.Lock()
@@ -492,7 +491,7 @@ func (s *Server) getBaiduDLink(filePath string) (string, error) {
 			signVal,
 			nowMilli,
 		)
-		body, err = s.baiduGet(locateURL)
+		body, err = s.baiduGet(locateURL, ua)
 		if err != nil {
 			return "", fmt.Errorf("重试 locatedownload 失败: %w", err)
 		}
@@ -523,7 +522,7 @@ func (s *Server) getBaiduDLink(filePath string) (string, error) {
 	return dlink, nil
 }
 
-// handleDownload 获取文件下载代理地址，以兼容前端的 urls[0].url 请求
+// handleDownload 获取百度网盘文件直链并返回
 func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	filePath := r.URL.Query().Get("path")
 	if filePath == "" {
@@ -537,80 +536,18 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 以前端期望的格式返回我们后端的代理流接口，绕过跨域和 Referer 校验
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	proxyURL := fmt.Sprintf("/api/stream?path=%s", url.QueryEscape(filePath))
-	respJSON := fmt.Sprintf(`{"urls":[{"url":%q}]}`, proxyURL)
-	w.Write([]byte(respJSON)) //nolint:errcheck
-}
-
-// handleStream 代理百度网盘下载文件流，注入 Referer 绕过防盗链
-func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
-	filePath := r.URL.Query().Get("path")
-	if filePath == "" {
-		http.Error(w, "缺少 path 参数", http.StatusBadRequest)
-		return
-	}
-
-	if !isValidBaiduPath(filePath) {
-		log.Printf("[WARN] 流传输非法路径请求被拒绝: %q", filePath)
-		http.Error(w, "非法路径", http.StatusBadRequest)
-		return
-	}
-
 	// 1. 调用公共方法获取百度直链
-	dlink, err := s.getBaiduDLink(filePath)
+	dlink, err := s.getBaiduDLink(filePath, r.Header.Get("User-Agent"))
 	if err != nil {
 		log.Printf("[ERROR] 获取百度直链失败: %v", err)
 		http.Error(w, "获取直链失败", http.StatusBadGateway)
 		return
 	}
 
-	// 2. 发起对百度直链的请求，并注入 Referer 和 User-Agent
-	req, err := http.NewRequest(http.MethodGet, dlink, nil)
-	if err != nil {
-		log.Printf("[ERROR] 创建直链请求失败: %v", err)
-		http.Error(w, "创建请求失败", http.StatusInternalServerError)
-		return
-	}
-
-	// 注入关键防盗链 Header
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	req.Header.Set("Referer", "https://pan.baidu.com/")
-
-	client := &http.Client{Timeout: 0} // 下载大文件不设超时限制
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("[ERROR] 代理文件流传输失败: %v", err)
-		http.Error(w, "代理下载失败", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-		// 读出前 200 字节看看百度又报错了什么
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 200))
-		log.Printf("[ERROR] 百度返回非200/206状态: %d, 响应: %s", resp.StatusCode, string(body))
-		http.Error(w, fmt.Sprintf("百度返回状态: %d", resp.StatusCode), http.StatusBadGateway)
-		return
-	}
-
-	// 3. 透传百度的响应头给前端
-	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
-	w.Header().Set("Content-Length", resp.Header.Get("Content-Length"))
-	w.Header().Set("Content-Disposition", resp.Header.Get("Content-Disposition"))
-	w.Header().Set("Accept-Ranges", "bytes")
-	if rangeHeader := resp.Header.Get("Content-Range"); rangeHeader != "" {
-		w.Header().Set("Content-Range", rangeHeader)
-	}
-
-	w.WriteHeader(resp.StatusCode)
-
-	// 4. 将百度文件流实时传输写入前端响应
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		log.Printf("[INFO] 代理文件流传输中途断开: %v", err)
-	}
+	// 直接返回真实的百度网盘直链
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	respJSON := fmt.Sprintf(`{"urls":[{"url":%q}]}`, dlink)
+	w.Write([]byte(respJSON)) //nolint:errcheck
 }
 
 
@@ -619,7 +556,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 // ---------- 百度网盘请求 ----------
 
 // baiduGet 向百度网盘API发起GET请求，Cookie由服务端注入
-func (s *Server) baiduGet(apiURL string) ([]byte, error) {
+func (s *Server) baiduGet(apiURL string, ua string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
@@ -627,7 +564,10 @@ func (s *Server) baiduGet(apiURL string) ([]byte, error) {
 
 	// Cookie只在服务端注入，绝不返回给客户端
 	req.Header.Set("Cookie", s.cfg.BaiduCookie)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	if ua == "" {
+		ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+	}
+	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Referer", "https://pan.baidu.com/")
 
 	client := &http.Client{Timeout: 15 * time.Second}
