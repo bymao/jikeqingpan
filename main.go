@@ -544,10 +544,16 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 直接返回真实的百度网盘直链
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	respJSON := fmt.Sprintf(`{"urls":[{"url":%q}]}`, dlink)
-	w.Write([]byte(respJSON)) //nolint:errcheck
+	format := r.URL.Query().Get("format")
+	if format == "json" {
+		// 返回 JSON 格式直链供前端处理
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		respJSON := fmt.Sprintf(`{"urls":[{"url":%q}]}`, dlink)
+		w.Write([]byte(respJSON)) //nolint:errcheck
+	} else {
+		// 浏览器直接请求时，直接重定向到真实的直链以触发直接下载
+		http.Redirect(w, r, dlink, http.StatusFound)
+	}
 }
 
 

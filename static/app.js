@@ -315,7 +315,7 @@ function downloadFile(filePath, fileName) {
 
   showToast('⏳ 正在生成安全直链…');
 
-  fetch('/api/download?path=' + encodeURIComponent(filePath), { credentials: 'same-origin' })
+  fetch('/api/download?path=' + encodeURIComponent(filePath) + '&format=json', { credentials: 'same-origin' })
     .then(function(resp) {
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       return resp.json();
