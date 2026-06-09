@@ -12,6 +12,18 @@
 2. 运行./cmd/bin/main 即可启动
 
 
+# 配置
+```json
+{
+  "port": 8080, #监听端口
+  "baidu_cookie": "", #百度网盘青春版Cookie
+  "rate_limit_per_second": 10, #网页请求速度限制
+  "baidu_app_id": "250528"
+}
+```
+
+
+
 
 # UI截图
 ![](https://img11.360buyimg.com/ddimg/jfs/t1/443186/21/10502/30047/6a1fa645F590f15a3/001536a2fd6f69b0.jpg)
