@@ -7,6 +7,35 @@
 
 # 部署
 
+## 方式一：Docker Compose（推荐）
+
+1. 编辑 `config.json`，替换 `"baidu_cookie"` 的值为你的百度网盘青春版 Cookie
+
+2. 构建并启动容器：
+
+```bash
+docker compose up -d
+```
+
+3. 查看日志：
+
+```bash
+docker compose logs -f
+```
+
+4. 停止容器：
+
+```bash
+docker compose down
+```
+
+> 配置文件 `config.json` 已通过 volume 挂载到容器中，修改配置后重启容器即可生效：
+> ```bash
+> docker compose restart
+> ```
+
+## 方式二：手动部署
+
 1. 编辑config.json文件，替换"baidu_cookie"的值，这是获取你百度网盘青春版文件列表的必要参数
 
 2. 运行./cmd/bin/main 即可启动
