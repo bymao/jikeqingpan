@@ -27,6 +27,6 @@ COPY --from=builder /app/temppan .
 COPY static/ ./static/
 COPY config.json ./
 
-EXPOSE 8080
+EXPOSE 8088
 
 CMD ["./temppan"]
